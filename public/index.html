@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous">
+    </script>
+    <title>KMB API</title>
+</head>
+
+<body class="container">
+    <div class="card start">
+        <div class="card-body">
+            <div class="mb-3">
+                <label for="busRoute" class="form-label">Input a bus line</label>
+                <input type="text" class="form-control" id="busRoute" placeholder="e.g. 914">
+            </div>
+            <div class="d-grid gap-2">
+                <button class="btn btn-primary" type="button" onclick="searchRoute()">Search</button>
+            </div>
+        </div>
+    </div>
+    <div id="display"></div>
+
+</body>
+
+</html>
+
+<script>
+    Array.prototype.forEachAsync = async function (fn) {
+        for (let t of this) {
+            await fn(t)
+        }
+    }
+
+    const bound = {
+        "I": "inbound",
+        "O": "outbound"
+    }
+    const display = document.getElementById("display")
+    let routes;
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        const res = await fetch("https://data.etabus.gov.hk/v1/transport/kmb/route/")
+        const resJSON = await res.json()
+        routes = resJSON.data
+    })
+
+    const searchRoute = () => {
+        const filterRoutes = routes.filter(e => {
+            return e.route == document.getElementById("busRoute").value
+        })
+        let html = `
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col">route</th>
+                    <th scope="col">bound</th>
+                    <th scope="col">service_type</th>
+                    <th scope="col">orig_tc</th>
+                    <th scope="col">dest_tc</th>
+                </tr>
+            </thead>
+            <tbody>
+        `
+        filterRoutes.forEach(element => {
+            html += `
+            <tr>
+                <th scope="row" onclick="routeStop('${element.route}','${bound[element.bound]}','${element.service_type}','${element.orig_tc}','${element.dest_tc}')">${element.route}</th>
+                <td>${element.bound}</td>
+                <td>${element.service_type}</td>
+                <td>${element.orig_tc}</td>
+                <td>${element.dest_tc}</td>
+            </tr>
+            `
+        });
+        html += `
+            </tbody>
+        </table>
+            `
+        display.innerHTML = html
+    }
+
+    const routeStop = async (route, direction, service_type, from, to) => {
+        const res = await fetch(
+            `https://data.etabus.gov.hk/v1/transport/kmb/route-stop/${route}/${direction}/${service_type}`)
+        const resJSON = await res.json()
+        let stopData = resJSON.data
+
+        let html = `
+        <table class="table">
+            <thead>
+                <tr>
+                    <th scope="col" colspan="5">${route}</th>
+                </tr>
+                <tr>
+                    <th scope="col" colspan="5">${from} \> ${to}</th>
+                </tr>
+                <tr>
+                    <th scope="col">stop_id</th>
+                    <th scope="col">name</th>
+                    <th scope="col">ETA1</th>
+                    <th scope="col">ETA2</th>
+                    <th scope="col">ETA3</th>
+                </tr>
+            </thead>
+            <tbody>
+        `
+        await stopData.forEachAsync(async (element, index) => {
+            const res2 = await fetch(
+                `https://data.etabus.gov.hk/v1/transport/kmb/stop/${element.stop}`)
+            const resJSON2 = await res2.json()
+            const name_tc = resJSON2.data.name_tc
+            html += `
+            <tr>
+                <th scope="row" onclick="searchETA('${element.stop}','${route}','${service_type}','${name_tc}','${from}','${to}')">${element.stop}</th>
+                <td>${name_tc}</td>
+                <td id="${element.stop}_1"></td>
+                <td id="${element.stop}_2"></td>
+                <td id="${element.stop}_3"></td>
+            </tr>
+            `
+        });
+        html += `
+            </tbody>
+        </table>
+            `
+        display.innerHTML = html
+    }
+
+    const searchETA = async (stop_id, route, service_type, stop_name, from, to)=>{
+        const res3 = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${stop_id}/${route}/${service_type}`)
+        const resJSON3 = await res3.json()
+        data = resJSON3.data.map(e=>{return Math.round((new Date(e.eta) - Date.now())/1000/60*100)/100})
+
+        data.forEach((e,i)=>{
+            document.getElementById(`${stop_id}_${i+1}`).innerHTML = parseTime(e)
+        })
+    }
+    
+    const parseTime = (time)=>{
+        return time.toString().split(".").map((e,i)=>{
+            if (i == 0) return e;
+            return Math.round(e*60/100)
+        }).join(":")
+    }
+</script>
+
+<style>
+    .start {
+        margin-top: 5vh;
+    }
+</style>
