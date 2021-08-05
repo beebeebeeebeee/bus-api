@@ -10,7 +10,7 @@ router.get([
     "/:route/:stopIndex",
     "/:route/:stopIndex/:inbound",
 ], async (req, res) => {
-    let direction = req.params.inbound ? "inbound" : "outbound";
+    let direction = req.params.inbound == "inbound" ? "inbound" : "outbound";
     let stopIndex = req.params.stopIndex
     let route = req.params.route
     let eta = [];

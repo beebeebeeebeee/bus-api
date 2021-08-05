@@ -9,7 +9,7 @@
         integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous">
-    </script>
+        </script>
     <title>KMB API</title>
 </head>
 
@@ -43,18 +43,11 @@
         "O": "outbound"
     }
     const display = document.getElementById("display")
-    let routes;
 
-    document.addEventListener("DOMContentLoaded", async () => {
-        const res = await fetch("https://data.etabus.gov.hk/v1/transport/kmb/route/")
-        const resJSON = await res.json()
-        routes = resJSON.data
-    })
+    const searchRoute = async () => {
+        const route = document.getElementById("busRoute").value
+        const filterRoutes = (await (await fetch(`/api/route/search/${route}`)).json())
 
-    const searchRoute = () => {
-        const filterRoutes = routes.filter(e => {
-            return e.route == document.getElementById("busRoute").value
-        })
         let html = `
         <table class="table">
             <thead>
@@ -71,9 +64,9 @@
         filterRoutes.forEach(element => {
             html += `
             <tr>
-                <th scope="row" onclick="routeStop('${element.route}','${bound[element.bound]}','${element.service_type}','${element.orig_tc}','${element.dest_tc}')">${element.route}</th>
-                <td>${element.bound}</td>
-                <td>${element.service_type}</td>
+                <th scope="row" onclick="routeStop('${element.route}','${bound[element.bound || "O"]}','${element.orig_tc}','${element.dest_tc}')">${element.route}</th>
+                <td>${element.bound || ""}</td>
+                <td>${element.service_type || ""}</td>
                 <td>${element.orig_tc}</td>
                 <td>${element.dest_tc}</td>
             </tr>
@@ -86,11 +79,9 @@
         display.innerHTML = html
     }
 
-    const routeStop = async (route, direction, service_type, from, to) => {
-        const res = await fetch(
-            `https://data.etabus.gov.hk/v1/transport/kmb/route-stop/${route}/${direction}/${service_type}`)
-        const resJSON = await res.json()
-        let stopData = resJSON.data
+    const routeStop = async (route, direction, from, to) => {
+        const stopData = await (await fetch(
+            `/api/route-stop/search/${route}/${direction}`)).json()
 
         let html = `
         <table class="table">
@@ -102,7 +93,6 @@
                     <th scope="col" colspan="5">${from} \> ${to}</th>
                 </tr>
                 <tr>
-                    <th scope="col">stop_id</th>
                     <th scope="col">name</th>
                     <th scope="col">ETA1</th>
                     <th scope="col">ETA2</th>
@@ -111,18 +101,14 @@
             </thead>
             <tbody>
         `
-        await stopData.forEachAsync(async (element, index) => {
-            const res2 = await fetch(
-                `https://data.etabus.gov.hk/v1/transport/kmb/stop/${element.stop}`)
-            const resJSON2 = await res2.json()
-            const name_tc = resJSON2.data.name_tc
+
+        stopData.forEach((element, index) => {
             html += `
             <tr>
-                <th scope="row" onclick="searchETA('${element.stop}','${route}','${service_type}','${name_tc}','${from}','${to}')">${element.stop}</th>
-                <td>${name_tc}</td>
-                <td id="${element.stop}_1"></td>
-                <td id="${element.stop}_2"></td>
-                <td id="${element.stop}_3"></td>
+                <th scope="row" onclick="searchETA('${route}','${index}','${direction}','${from}','${to}')">${element.name_tc}</th>
+                <td id="${index}_0"></td>
+                <td id="${index}_1"></td>
+                <td id="${index}_2"></td>
             </tr>
             `
         });
@@ -133,21 +119,13 @@
         display.innerHTML = html
     }
 
-    const searchETA = async (stop_id, route, service_type, stop_name, from, to)=>{
-        const res3 = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${stop_id}/${route}/${service_type}`)
-        const resJSON3 = await res3.json()
-        data = resJSON3.data.map(e=>{return Math.round((new Date(e.eta) - Date.now())/1000/60*100)/100})
+    const searchETA = async (route, index, direction, from, to) => {
+        setInterval(function(){ searchETA(route, index, direction, from, to) }, 30000);
+        const etaData = (await (await fetch(`/api/route/eta/${route}/${index}/${direction}`)).json()).eta
 
-        data.forEach((e,i)=>{
-            document.getElementById(`${stop_id}_${i+1}`).innerHTML = parseTime(e)
+        etaData.forEach((e, i) => {
+            if(i<3) document.getElementById(`${index}_${i}`).innerHTML = `${e.eta} (${e.co})`
         })
-    }
-    
-    const parseTime = (time)=>{
-        return time.toString().split(".").map((e,i)=>{
-            if (i == 0) return e;
-            return Math.round(e*60/100)
-        }).join(":")
     }
 </script>
 

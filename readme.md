@@ -7,6 +7,10 @@
 
     ````/api/route/search/:route````
 
+- Search for a route stop list
+
+    ````/api/route-stop/search/:route/:inbound (optional)````
+
 - Search eta for a route
 
     ````/api/route/eta/:route/:stopIndex/:inbound (optional)````
